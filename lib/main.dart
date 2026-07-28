@@ -10,10 +10,12 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'controllers/quota_controller.dart';
+import 'controllers/music_controller.dart';
 import 'controllers/widget_layout_controller.dart';
 import 'providers/antigravity_provider.dart';
 import 'providers/codex_provider.dart';
 import 'services/settings_service.dart';
+import 'services/windows_media_service.dart';
 import 'services/windows_shell_service.dart';
 import 'ui/settings_window.dart';
 import 'ui/widget_bar.dart';
@@ -89,6 +91,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
   final _shell = WindowsShellService();
   late final WidgetLayoutController _layout;
   late final QuotaController _quota;
+  late final MusicController _music;
   late final AppSettings _settings;
   File? _temporaryTrayIcon;
   bool _exiting = false;
@@ -100,6 +103,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
     _settings = AppSettings(widget.preferences)..addListener(_applySettings);
     _quota = QuotaController([CodexQuotaProvider(), AntigravityQuotaProvider()])
       ..start(Duration(minutes: _settings.refreshMinutes));
+    _music = MusicController(WindowsMediaService())..start();
     windowManager.addListener(this);
     trayManager.addListener(this);
     widget.windowController.setWindowMethodHandler((call) async {
@@ -288,6 +292,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
     _settings.removeListener(_applySettings);
     _layout.dispose();
     _quota.dispose();
+    _music.dispose();
     _settings.dispose();
     super.dispose();
   }
@@ -318,6 +323,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
           child: WidgetBar(
             layout: _layout,
             quota: _quota,
+            music: _music,
             settings: _settings,
             onSettings: _openSettings,
             onHide: _hideBar,

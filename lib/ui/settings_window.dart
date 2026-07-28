@@ -652,17 +652,19 @@ class _AppearancePanelState extends State<_AppearancePanel> {
   }
 }
 
-enum _ComponentGroup { all, quota }
+enum _ComponentGroup { all, quota, music }
 
 extension on _ComponentGroup {
   String get title => switch (this) {
     _ComponentGroup.all => '全部组件',
     _ComponentGroup.quota => '额度统计',
+    _ComponentGroup.music => '音乐',
   };
 
   IconData get icon => switch (this) {
     _ComponentGroup.all => Icons.grid_view_rounded,
     _ComponentGroup.quota => Icons.data_usage_rounded,
+    _ComponentGroup.music => Icons.music_note_rounded,
   };
 }
 
@@ -680,7 +682,11 @@ class _ComponentPanelState extends State<_ComponentPanel> {
   _ComponentGroup _group = _ComponentGroup.all;
 
   List<DesktopWidgetType> get _visibleTypes => switch (_group) {
-    _ComponentGroup.all || _ComponentGroup.quota => DesktopWidgetType.values,
+    _ComponentGroup.all => DesktopWidgetType.values,
+    _ComponentGroup.quota =>
+      DesktopWidgetType.values.where((type) => type.isQuota).toList(),
+    _ComponentGroup.music =>
+      DesktopWidgetType.values.where((type) => !type.isQuota).toList(),
   };
 
   @override
@@ -800,7 +806,18 @@ class _ComponentPanelState extends State<_ComponentPanel> {
                       _GroupButton(
                         group: group,
                         selected: _group == group,
-                        count: DesktopWidgetType.values.length,
+                        count: switch (group) {
+                          _ComponentGroup.all =>
+                            DesktopWidgetType.values.length,
+                          _ComponentGroup.quota =>
+                            DesktopWidgetType.values
+                                .where((type) => type.isQuota)
+                                .length,
+                          _ComponentGroup.music =>
+                            DesktopWidgetType.values
+                                .where((type) => !type.isQuota)
+                                .length,
+                        },
                         onTap: () => setState(() => _group = group),
                       ),
                     const Spacer(),
@@ -993,7 +1010,7 @@ class _ComponentCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '额度统计',
+                    type.isQuota ? '额度统计' : '音乐',
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                 ),
@@ -1027,22 +1044,26 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.codex => const Color(0xff4ade80),
       DesktopWidgetType.gemini => const Color(0xff60a5fa),
       DesktopWidgetType.claudeAndGpt => const Color(0xffc084fc),
+      DesktopWidgetType.neteaseMusic => const Color(0xffef4444),
     };
     final metric = switch (type) {
       DesktopWidgetType.codex => '周 56%',
       DesktopWidgetType.gemini => '72% · 28%',
       DesktopWidgetType.claudeAndGpt => '68% · 41%',
+      DesktopWidgetType.neteaseMusic => '播放中',
     };
     final detail = switch (type) {
       DesktopWidgetType.codex =>
         compact ? '4天 23小时 · 重置 2' : '4天 23小时 36分钟 2秒   重置 2',
       DesktopWidgetType.gemini => '3天 12小时 · 1天 6小时',
       DesktopWidgetType.claudeAndGpt => '4天 8小时 · 2天 19小时',
+      DesktopWidgetType.neteaseMusic => '歌曲名称 · 歌手名称',
     };
     final progresses = switch (type) {
       DesktopWidgetType.codex => const [0.56],
       DesktopWidgetType.gemini => const [0.72, 0.28],
       DesktopWidgetType.claudeAndGpt => const [0.68, 0.41],
+      DesktopWidgetType.neteaseMusic => const [0.72],
     };
     return Padding(
       padding: EdgeInsets.symmetric(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../controllers/quota_controller.dart';
+import '../controllers/music_controller.dart';
 import '../controllers/widget_layout_controller.dart';
 import '../services/settings_service.dart';
 import 'native_tooltip.dart';
@@ -14,6 +15,7 @@ class WidgetBar extends StatefulWidget {
     required this.layout,
     required this.quota,
     required this.settings,
+    required this.music,
     required this.onSettings,
     required this.onHide,
   });
@@ -21,6 +23,7 @@ class WidgetBar extends StatefulWidget {
   final WidgetLayoutController layout;
   final QuotaController quota;
   final AppSettings settings;
+  final MusicController music;
   final VoidCallback onSettings;
   final VoidCallback onHide;
 
@@ -48,7 +51,12 @@ class _WidgetBarState extends State<WidgetBar> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([widget.layout, widget.quota, widget.settings]),
+    animation: Listenable.merge([
+      widget.layout,
+      widget.quota,
+      widget.music,
+      widget.settings,
+    ]),
     builder: (context, _) {
       final slots = widget.layout.slots;
       final dark = switch (widget.settings.textColor) {
@@ -77,6 +85,7 @@ class _WidgetBarState extends State<WidgetBar> {
                     type: slots[index],
                     snapshots: widget.quota.snapshots,
                     now: _now,
+                    music: widget.music,
                   ),
                 ),
               SizedBox(
