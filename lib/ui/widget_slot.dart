@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/desktop_widget_config.dart';
 import '../models/quota.dart';
 import '../controllers/music_controller.dart';
+import 'widgets/lyric_widget.dart';
 import 'widgets/netease_music_widget.dart';
 import 'widgets/quota_widget.dart';
 
@@ -44,6 +45,8 @@ class WidgetSlot extends StatelessWidget {
         ? const SizedBox.expand()
         : type == DesktopWidgetType.neteaseMusic
         ? NeteaseMusicWidget(controller: music)
+        : type == DesktopWidgetType.neteaseLyrics
+        ? LyricWidget(controller: music)
         : QuotaWidget(type: type!, snapshot: snapshots[type!.title], now: now),
   );
 }

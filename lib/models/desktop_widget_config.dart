@@ -1,4 +1,10 @@
-enum DesktopWidgetType { codex, gemini, claudeAndGpt, neteaseMusic }
+enum DesktopWidgetType {
+  codex,
+  gemini,
+  claudeAndGpt,
+  neteaseMusic,
+  neteaseLyrics,
+}
 
 extension DesktopWidgetTypeView on DesktopWidgetType {
   String get title => switch (this) {
@@ -6,15 +12,22 @@ extension DesktopWidgetTypeView on DesktopWidgetType {
     DesktopWidgetType.gemini => 'Gemini',
     DesktopWidgetType.claudeAndGpt => 'Claude & GPT',
     DesktopWidgetType.neteaseMusic => '音乐控制',
+    DesktopWidgetType.neteaseLyrics => '歌词',
   };
 
   String get source => switch (this) {
     DesktopWidgetType.codex => 'ChatGPT App',
     DesktopWidgetType.gemini || DesktopWidgetType.claudeAndGpt => 'Antigravity',
     DesktopWidgetType.neteaseMusic => 'Windows 系统媒体会话',
+    DesktopWidgetType.neteaseLyrics => 'Windows SMTC · 网易云 / LRCLIB',
   };
 
-  bool get isQuota => this != DesktopWidgetType.neteaseMusic;
+  bool get isQuota => switch (this) {
+    DesktopWidgetType.codex ||
+    DesktopWidgetType.gemini ||
+    DesktopWidgetType.claudeAndGpt => true,
+    DesktopWidgetType.neteaseMusic || DesktopWidgetType.neteaseLyrics => false,
+  };
 
   static DesktopWidgetType? parse(String? value) {
     for (final type in DesktopWidgetType.values) {

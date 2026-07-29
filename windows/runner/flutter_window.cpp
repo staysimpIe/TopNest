@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <functional>
 #include <optional>
 #include <thread>
@@ -123,6 +124,15 @@ using MediaSession = winrt::Windows::Media::Control::
 using MediaSessionManager = winrt::Windows::Media::Control::
     GlobalSystemMediaTransportControlsSessionManager;
 
+bool IsNeteaseSource(const winrt::hstring& source_id) {
+  std::wstring source = source_id.c_str();
+  std::transform(source.begin(), source.end(), source.begin(), towlower);
+  return source.find(L"cloudmusic") != std::wstring::npos ||
+         source.find(L"netease") != std::wstring::npos ||
+         source.find(L"music.163") != std::wstring::npos ||
+         source.find(L"122165ae053f") != std::wstring::npos;
+}
+
 MediaSession FindMediaSession() {
   const auto manager = MediaSessionManager::RequestAsync().get();
   const auto current_session = manager.GetCurrentSession();
@@ -130,14 +140,7 @@ MediaSession FindMediaSession() {
 
   // 旧版网易云有时不会成为 Windows 当前媒体会话，保留匹配作为兼容回退。
   for (const auto& session : manager.GetSessions()) {
-    std::wstring source = session.SourceAppUserModelId().c_str();
-    std::transform(source.begin(), source.end(), source.begin(), towlower);
-    if (source.find(L"cloudmusic") != std::wstring::npos ||
-        source.find(L"netease") != std::wstring::npos ||
-        source.find(L"music.163") != std::wstring::npos ||
-        source.find(L"122165ae053f") != std::wstring::npos) {
-      return session;
-    }
+    if (IsNeteaseSource(session.SourceAppUserModelId())) return session;
   }
   return nullptr;
 }
@@ -273,24 +276,46 @@ flutter::EncodableMap ReadMediaState() {
     return state;
   }
 
+  const bool netease_session = IsNeteaseSource(session.SourceAppUserModelId());
+  state[flutter::EncodableValue("neteaseSession")] =
+      flutter::EncodableValue(netease_session);
+  if (netease_session) {
+    state[flutter::EncodableValue("windowTitle")] =
+        flutter::EncodableValue(GetNeteaseWindowTitle());
+  }
   const auto properties = session.TryGetMediaPropertiesAsync().get();
   const auto playback = session.GetPlaybackInfo();
   const auto controls = playback.Controls();
+  const auto timeline = session.GetTimelineProperties();
+  const bool playing =
+      playback.PlaybackStatus() == winrt::Windows::Media::Control::
+                                       GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
+  auto position = timeline.Position();
+  if (playing) {
+    const auto elapsed = winrt::clock::now() - timeline.LastUpdatedTime();
+    if (elapsed > decltype(elapsed)::zero() &&
+        elapsed < std::chrono::hours(24)) {
+      position += std::chrono::duration_cast<decltype(position)>(elapsed);
+      position = std::min(position, timeline.EndTime());
+    }
+  }
   state[flutter::EncodableValue("title")] =
       flutter::EncodableValue(WideToUtf8(properties.Title().c_str()));
   state[flutter::EncodableValue("artist")] =
       flutter::EncodableValue(WideToUtf8(properties.Artist().c_str()));
   state[flutter::EncodableValue("album")] =
       flutter::EncodableValue(WideToUtf8(properties.AlbumTitle().c_str()));
-  state[flutter::EncodableValue("playing")] = flutter::EncodableValue(
-      playback.PlaybackStatus() == winrt::Windows::Media::Control::
-                                       GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
+  state[flutter::EncodableValue("playing")] = flutter::EncodableValue(playing);
   state[flutter::EncodableValue("canPrevious")] =
       flutter::EncodableValue(controls.IsPreviousEnabled());
   state[flutter::EncodableValue("canNext")] =
       flutter::EncodableValue(controls.IsNextEnabled());
   state[flutter::EncodableValue("canPlayPause")] =
       flutter::EncodableValue(controls.IsPlayPauseToggleEnabled());
+  state[flutter::EncodableValue("positionMs")] = flutter::EncodableValue(
+      static_cast<int64_t>(position.count() / 10000));
+  state[flutter::EncodableValue("durationMs")] = flutter::EncodableValue(
+      static_cast<int64_t>(timeline.EndTime().count() / 10000));
   const auto thumbnail = properties.Thumbnail();
   if (thumbnail != nullptr) {
     const auto stream = thumbnail.OpenReadAsync().get();

@@ -1045,12 +1045,14 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.gemini => const Color(0xff60a5fa),
       DesktopWidgetType.claudeAndGpt => const Color(0xffc084fc),
       DesktopWidgetType.neteaseMusic => const Color(0xffef4444),
+      DesktopWidgetType.neteaseLyrics => const Color(0xffef4444),
     };
     final metric = switch (type) {
       DesktopWidgetType.codex => '周 56%',
       DesktopWidgetType.gemini => '72% · 28%',
       DesktopWidgetType.claudeAndGpt => '68% · 41%',
       DesktopWidgetType.neteaseMusic => '播放中',
+      DesktopWidgetType.neteaseLyrics => '正在播放的歌词',
     };
     final detail = switch (type) {
       DesktopWidgetType.codex =>
@@ -1058,12 +1060,14 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.gemini => '3天 12小时 · 1天 6小时',
       DesktopWidgetType.claudeAndGpt => '4天 8小时 · 2天 19小时',
       DesktopWidgetType.neteaseMusic => '歌曲名称 · 歌手名称',
+      DesktopWidgetType.neteaseLyrics => '下一句歌词',
     };
     final progresses = switch (type) {
       DesktopWidgetType.codex => const [0.56],
       DesktopWidgetType.gemini => const [0.72, 0.28],
       DesktopWidgetType.claudeAndGpt => const [0.68, 0.41],
       DesktopWidgetType.neteaseMusic => const [0.72],
+      DesktopWidgetType.neteaseLyrics => const [0.45],
     };
     return Padding(
       padding: EdgeInsets.symmetric(

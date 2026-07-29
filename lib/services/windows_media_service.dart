@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../models/music_state.dart';
@@ -15,10 +16,13 @@ class WindowsMediaService {
       );
       final map = value ?? const <Object?, Object?>{};
       final state = MusicState.fromMap(map);
-      if (state.available || map['neteaseRunning'] != true) return state;
+      final isNetease =
+          map['neteaseSession'] == true ||
+          (!state.available && map['neteaseRunning'] == true);
+      if (!isNetease) return state;
       return await _readNeteaseCache(
             windowTitle: map['windowTitle'] as String?,
-            playing: map['playing'] == true,
+            mediaState: state,
           ) ??
           state;
     } on PlatformException catch (error) {
@@ -28,7 +32,7 @@ class WindowsMediaService {
 
   Future<MusicState?> _readNeteaseCache({
     required String? windowTitle,
-    required bool playing,
+    required MusicState mediaState,
   }) async {
     final localAppData = Platform.environment['LOCALAPPDATA'];
     if (localAppData == null) return null;
@@ -39,30 +43,10 @@ class WindowsMediaService {
       final root = jsonDecode(await file.readAsString());
       if (root is! Map || root['list'] is! List) return null;
       final items = (root['list'] as List).whereType<Map>();
-      Map? item;
-      if (windowTitle != null && windowTitle.isNotEmpty) {
-        final normalizedTitle = _normalizeTitle(windowTitle);
-        var matchedNameLength = -1;
-        for (final candidate in items) {
-          final candidateTrack = candidate['track'];
-          if (candidateTrack is! Map) continue;
-          final name = candidateTrack['name'] as String?;
-          if (name == null || name.isEmpty) continue;
-          final normalizedName = _normalizeTitle(name);
-          final matches =
-              normalizedTitle == normalizedName ||
-              normalizedTitle.startsWith('$normalizedName - ') ||
-              normalizedTitle.startsWith('$normalizedName – ') ||
-              normalizedTitle.startsWith('$normalizedName — ');
-          if (matches && normalizedName.length > matchedNameLength) {
-            item = candidate;
-            matchedNameLength = normalizedName.length;
-          }
-        }
-      }
-      item ??= items.cast<Map?>().firstWhere(
-        (value) => value?['isPlayedOnce'] == true,
-        orElse: () => items.isEmpty ? null : items.first,
+      final item = matchNeteaseTrack(
+        items,
+        mediaState,
+        fallbackTitle: windowTitle,
       );
       final track = item?['track'];
       if (track is! Map) return null;
@@ -79,14 +63,22 @@ class WindowsMediaService {
           album?['cover'] as String? ?? album?['picUrl'] as String?;
       return MusicState(
         available: true,
-        title: track['name'] as String? ?? '',
-        artist: artists,
-        album: album?['name'] as String? ?? '',
+        title: mediaState.title.isNotEmpty
+            ? mediaState.title
+            : track['name'] as String? ?? '',
+        artist: mediaState.artist.isNotEmpty ? mediaState.artist : artists,
+        album: mediaState.album.isNotEmpty
+            ? mediaState.album
+            : album?['name'] as String? ?? '',
+        cover: mediaState.cover,
         coverUrl: coverUrl,
-        playing: playing,
-        canPrevious: true,
-        canNext: true,
-        canPlayPause: true,
+        playing: mediaState.playing,
+        canPrevious: mediaState.available ? mediaState.canPrevious : true,
+        canNext: mediaState.available ? mediaState.canNext : true,
+        canPlayPause: mediaState.available ? mediaState.canPlayPause : true,
+        trackId: track['id']?.toString(),
+        positionMs: mediaState.positionMs,
+        durationMs: mediaState.durationMs,
       );
     } on FileSystemException {
       return null;
@@ -95,8 +87,84 @@ class WindowsMediaService {
     }
   }
 
-  String _normalizeTitle(String value) =>
-      value.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+  @visibleForTesting
+  Map? matchNeteaseTrack(
+    Iterable<Map> items,
+    MusicState mediaState, {
+    String? fallbackTitle,
+  }) {
+    final title = mediaState.title.isNotEmpty
+        ? mediaState.title
+        : fallbackTitle ?? '';
+    final normalizedTitle = _normalizeMetadata(title);
+    if (normalizedTitle.isEmpty) return null;
+
+    Map? bestMatch;
+    var bestScore = -1;
+    for (final item in items) {
+      final track = item['track'];
+      if (track is! Map) continue;
+      final candidateTitle = _normalizeMetadata(track['name'] as String? ?? '');
+      if (candidateTitle.isEmpty) continue;
+
+      var score = 0;
+      if (normalizedTitle == candidateTitle) {
+        score += 100;
+      } else if (normalizedTitle.contains(candidateTitle) ||
+          candidateTitle.contains(normalizedTitle)) {
+        score += 60;
+      } else {
+        continue;
+      }
+
+      final normalizedArtist = _normalizeMetadata(mediaState.artist);
+      if (normalizedArtist.isNotEmpty) {
+        final artistMatched =
+            track['artists'] is List &&
+            (track['artists'] as List).whereType<Map>().any((artist) {
+              final candidateArtist = _normalizeMetadata(
+                artist['name'] as String? ?? '',
+              );
+              return candidateArtist.isNotEmpty &&
+                  (normalizedArtist.contains(candidateArtist) ||
+                      candidateArtist.contains(normalizedArtist));
+            });
+        score += artistMatched ? 40 : -60;
+      }
+
+      final album = track['album'];
+      final candidateAlbum = album is Map
+          ? _normalizeMetadata(album['name'] as String? ?? '')
+          : '';
+      final normalizedAlbum = _normalizeMetadata(mediaState.album);
+      if (normalizedAlbum.isNotEmpty && normalizedAlbum == candidateAlbum) {
+        score += 20;
+      }
+
+      final duration = (track['duration'] as num?)?.toInt();
+      if (mediaState.durationMs > 0 && duration != null) {
+        final difference = (mediaState.durationMs - duration).abs();
+        if (difference <= 2000) {
+          score += 30;
+        } else if (difference <= 5000) {
+          score += 20;
+        } else if (difference <= 10000) {
+          score += 10;
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = item;
+      }
+    }
+    return bestScore >= 100 ? bestMatch : null;
+  }
+
+  String _normalizeMetadata(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'''[\s\-‐‑‒–—―_·•.,，。:：;；'"’‘“”()（）\[\]【】{}]+'''), '')
+      .trim();
 
   Future<void> previous() => _control('previous');
   Future<void> next() => _control('next');

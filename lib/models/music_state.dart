@@ -12,6 +12,9 @@ class MusicState {
     this.canPrevious = false,
     this.canNext = false,
     this.canPlayPause = false,
+    this.trackId,
+    this.positionMs = 0,
+    this.durationMs = 0,
     this.error,
   });
 
@@ -25,9 +28,12 @@ class MusicState {
   final bool canPrevious;
   final bool canNext;
   final bool canPlayPause;
+  final String? trackId;
+  final int positionMs;
+  final int durationMs;
   final String? error;
 
-  MusicState copyWith({bool? playing}) => MusicState(
+  MusicState copyWith({bool? playing, int? positionMs}) => MusicState(
     available: available,
     title: title,
     artist: artist,
@@ -38,6 +44,9 @@ class MusicState {
     canPrevious: canPrevious,
     canNext: canNext,
     canPlayPause: canPlayPause,
+    trackId: trackId,
+    positionMs: positionMs ?? this.positionMs,
+    durationMs: durationMs,
     error: error,
   );
 
@@ -54,7 +63,17 @@ class MusicState {
       canPrevious: value['canPrevious'] == true,
       canNext: value['canNext'] == true,
       canPlayPause: value['canPlayPause'] == true,
+      trackId: value['trackId']?.toString(),
+      positionMs: (value['positionMs'] as num?)?.toInt() ?? 0,
+      durationMs: (value['durationMs'] as num?)?.toInt() ?? 0,
       error: value['error'] as String?,
     );
   }
+}
+
+class LyricLine {
+  const LyricLine({required this.timeMs, required this.text});
+
+  final int timeMs;
+  final String text;
 }
