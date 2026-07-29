@@ -20,11 +20,12 @@ class WindowsMediaService {
           map['neteaseSession'] == true ||
           (!state.available && map['neteaseRunning'] == true);
       if (!isNetease) return state;
+      final synchronizedState = state.copyWith(positionMs: state.rawPositionMs);
       return await _readNeteaseCache(
             windowTitle: map['windowTitle'] as String?,
-            mediaState: state,
+            mediaState: synchronizedState,
           ) ??
-          state;
+          synchronizedState;
     } on PlatformException catch (error) {
       return MusicState(error: error.message ?? '读取媒体状态失败');
     }
@@ -78,6 +79,8 @@ class WindowsMediaService {
         canPlayPause: mediaState.available ? mediaState.canPlayPause : true,
         trackId: track['id']?.toString(),
         positionMs: mediaState.positionMs,
+        rawPositionMs: mediaState.rawPositionMs,
+        audioActive: mediaState.audioActive,
         durationMs: mediaState.durationMs,
       );
     } on FileSystemException {

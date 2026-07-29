@@ -14,6 +14,8 @@ class MusicState {
     this.canPlayPause = false,
     this.trackId,
     this.positionMs = 0,
+    this.rawPositionMs = 0,
+    this.audioActive,
     this.durationMs = 0,
     this.error,
   });
@@ -30,6 +32,8 @@ class MusicState {
   final bool canPlayPause;
   final String? trackId;
   final int positionMs;
+  final int rawPositionMs;
+  final bool? audioActive;
   final int durationMs;
   final String? error;
 
@@ -46,6 +50,8 @@ class MusicState {
     canPlayPause: canPlayPause,
     trackId: trackId,
     positionMs: positionMs ?? this.positionMs,
+    rawPositionMs: rawPositionMs,
+    audioActive: audioActive,
     durationMs: durationMs,
     error: error,
   );
@@ -65,6 +71,10 @@ class MusicState {
       canPlayPause: value['canPlayPause'] == true,
       trackId: value['trackId']?.toString(),
       positionMs: (value['positionMs'] as num?)?.toInt() ?? 0,
+      rawPositionMs: (value['rawPositionMs'] as num?)?.toInt() ?? 0,
+      audioActive: value['audioActive'] is bool
+          ? value['audioActive'] as bool
+          : null,
       durationMs: (value['durationMs'] as num?)?.toInt() ?? 0,
       error: value['error'] as String?,
     );

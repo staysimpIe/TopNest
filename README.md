@@ -2,15 +2,25 @@
 
 顶栖是一款常驻 Windows 11 桌面顶部的轻量级组件容器。它将常用信息和快捷操作放在屏幕最上方，通过三个固定槽位组织不同组件，让内容随时可见，同时不遮挡正常的桌面工作区。
 
-项目当前提供 Codex、Gemini、Claude & GPT 三个额度组件。额度统计只是顶栖的第一批内置能力，整体结构按照通用桌面组件容器设计，后续可以继续扩展音乐控制、时间、天气、系统状态和快捷工具等组件。
+项目当前提供 Codex、Gemini、Claude & GPT 三个额度组件，以及音乐控制、歌词两个音乐组件。整体结构按照通用桌面组件容器设计，后续可以继续扩展时间、天气、系统状态和快捷工具等组件。
 
 > 当前版本：`1.0.0`　·　平台：Windows 11 x64　·　技术栈：Flutter + Win32
 
 ## 界面预览
 
-| 浅色模式 | 深色模式 |
+### 顶部组件栏
+
+![顶栖顶部组件栏，展示额度、音乐控制和歌词组件](docs/images/top-widget-bar.png)
+
+### 设置界面
+
+| 通用设置 | 外观设置 |
 | --- | --- |
-| ![顶栖浅色模式](design-qa-light.png) | ![顶栖深色模式](design-qa-dark.png) |
+| ![顶栖通用设置](docs/images/settings-general.png) | ![顶栖外观设置](docs/images/settings-appearance.png) |
+
+### 组件管理
+
+![顶栖组件管理，可添加、移除和排列组件](docs/images/settings-components.png)
 
 ## 主要功能
 
@@ -36,6 +46,14 @@
 - 数据刷新失败时保留上一份有效数据并标记为旧数据；没有历史数据时明确显示不可用。
 - 不使用随机数或模拟内容填充缺失额度。
 
+### 音乐播放与歌词
+
+- 通过 Windows 系统媒体会话读取当前歌曲、歌手、专辑和封面，并提供上一首、播放/暂停、下一首控制。
+- 音乐控制不绑定特定播放器，支持接入 Windows SMTC 的播放器。
+- 歌词组件展示当前歌词和下一句歌词，切换时使用滚动过渡效果。
+- 网易云音乐优先按歌曲 ID 获取同步歌词，其他播放器或未取得歌曲 ID 时通过 LRCLIB 匹配歌词。
+- 播放状态、进度或歌词暂不可用时显示明确提示，不使用模拟内容填充。
+
 ### 个性化外观
 
 - 支持全透明和毛玻璃两种背景效果。
@@ -59,6 +77,8 @@
 | Codex | 本地 Codex 会话记录及 Codex app-server | 周额度、重置倒计时、可用重置次数 | 本机存在有效的 Codex 数据；读取重置次数时需要可执行的 `codex.exe` |
 | Gemini | Antigravity language server | 可用额度和重置时间 | 本机正在运行 Antigravity |
 | Claude & GPT | Antigravity language server | 可用额度和重置时间 | 本机正在运行 Antigravity |
+| 音乐控制 | Windows 系统媒体会话 | 歌曲、歌手、专辑、封面及播放控制 | 本机播放器支持并启用 Windows SMTC |
+| 歌词 | Windows SMTC、网易云音乐及 LRCLIB | 当前歌词和下一句歌词 | 播放器提供媒体信息，并可访问对应歌词服务 |
 
 ### Codex 数据读取
 
@@ -72,6 +92,10 @@
 
 本项目没有自建服务器或账号系统，数据读取逻辑集中在本地文件、本地进程和本地服务。
 
+### 音乐与歌词数据读取
+
+顶栖通过 Windows `GlobalSystemMediaTransportControlsSession` 获取当前系统媒体会话，并读取歌曲信息、封面、播放状态和时间轴；上一首、播放/暂停、下一首操作也通过该会话发送。歌词优先使用网易云音乐歌曲 ID 精确读取，无法精确读取时再按歌曲、歌手、专辑和时长从 LRCLIB 匹配同步歌词。
+
 ## 系统要求
 
 ### 直接运行
@@ -79,6 +103,7 @@
 - Windows 11 x64。
 - 如需 Codex 额度：本机具有 Codex 会话数据，建议同时安装 Codex CLI。
 - 如需 Gemini、Claude & GPT 额度：本机需运行 Antigravity。
+- 如需音乐控制或歌词：播放器需支持 Windows SMTC；歌词读取需要网络连接。
 
 ### 源码开发
 
@@ -125,6 +150,8 @@ build\windows\x64\runner\Release
 - 多数据源并行刷新、重复刷新保护及旧数据保留。
 - 三槽布局的添加、移除、交换、持久化和异常数据清理。
 - 额度倒计时显示。
+- Windows 媒体会话数据解析、播放控制和时间轴处理。
+- 同步歌词解析、歌词源匹配、切歌加载和歌词滚动逻辑。
 
 ## 制作安装程序
 
@@ -148,6 +175,8 @@ TopNest-Setup-1.0.0.exe
 ```text
 topnest/
 ├─ assets/                         # 托盘图标等资源
+├─ docs/
+│  └─ images/                     # README 界面截图
 ├─ installer/
 │  └─ topnest.iss                 # Inno Setup 安装脚本
 ├─ lib/
@@ -171,7 +200,13 @@ topnest/
 - `shared_preferences` 保存外观、启动设置和组件布局。
 - Win32 `SHAppBarMessage` 将窗口注册到屏幕顶部并预留工作区。
 - Windows DWM 与 `SetWindowCompositionAttribute` 提供浅色、深色毛玻璃及兼容回退效果。
-- Dart MethodChannel 连接 Flutter 界面与原生 AppBar、DWM 和工具提示能力。
+- Dart MethodChannel 连接 Flutter 界面与原生 AppBar、DWM、系统媒体会话和工具提示能力。
+
+### 歌词时间轴参考
+
+歌词组件使用 Windows SMTC 提供的播放状态与时间轴，并对网易云音乐增加了歌曲实际开始播放确认，避免网络加载期间歌词提前滚动。时间轴策略参考了 [Lyricify Lite 支持说明](https://docs.lyricify.app/en/lyricify-lite/supported-apps/)及其[网易云音乐时间轴说明](https://docs.lyricify.app/lyricify-lite/app-faq/netease-cloud-music/)，SMTC 字段语义以 [Microsoft `Position` 文档](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessiontimelineproperties.position?view=winrt-26100)为准。
+
+本项目仅参考上述公开设计文档，没有复制或引入 Lyricify 的闭源代码。
 
 ## 扩展新组件
 
@@ -190,7 +225,9 @@ topnest/
 - 当前只支持 Windows，原生窗口实现针对 Windows 11 设计。
 - 顶部窗口固定在主显示器，暂不支持选择其他显示器。
 - 当前固定为三个槽位，尚未提供自定义槽位数量。
-- 内置组件目前均为额度统计类，音乐、天气和系统状态等组件仍待扩展。
+- 音乐控制依赖播放器对 Windows SMTC 的支持，播放器未提供的媒体信息或控制能力无法补全。
+- 歌词依赖网易云音乐或 LRCLIB 的在线数据，部分歌曲可能没有匹配的同步歌词。
+- 天气和系统状态等组件仍待扩展。
 - Antigravity 使用本地非公开接口，兼容性可能受其版本升级影响。
 
 ## 名称含义

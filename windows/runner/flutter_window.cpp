@@ -265,12 +265,15 @@ flutter::EncodableMap ReadMediaState() {
   state[flutter::EncodableValue("available")] =
       flutter::EncodableValue(session != nullptr);
   if (session == nullptr) {
+    const bool netease_audio_active = IsNeteaseAudioPlaying();
     state[flutter::EncodableValue("neteaseRunning")] =
         flutter::EncodableValue(IsNeteaseRunning());
     state[flutter::EncodableValue("windowTitle")] =
         flutter::EncodableValue(GetNeteaseWindowTitle());
     state[flutter::EncodableValue("playing")] =
-        flutter::EncodableValue(IsNeteaseAudioPlaying());
+        flutter::EncodableValue(netease_audio_active);
+    state[flutter::EncodableValue("audioActive")] =
+        flutter::EncodableValue(netease_audio_active);
     state[flutter::EncodableValue("error")] =
         flutter::EncodableValue("请打开支持系统媒体会话的音乐播放器并播放歌曲");
     return state;
@@ -290,7 +293,8 @@ flutter::EncodableMap ReadMediaState() {
   const bool playing =
       playback.PlaybackStatus() == winrt::Windows::Media::Control::
                                        GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
-  auto position = timeline.Position();
+  const auto raw_position = timeline.Position();
+  auto position = raw_position;
   if (playing) {
     const auto elapsed = winrt::clock::now() - timeline.LastUpdatedTime();
     if (elapsed > decltype(elapsed)::zero() &&
@@ -314,6 +318,12 @@ flutter::EncodableMap ReadMediaState() {
       flutter::EncodableValue(controls.IsPlayPauseToggleEnabled());
   state[flutter::EncodableValue("positionMs")] = flutter::EncodableValue(
       static_cast<int64_t>(position.count() / 10000));
+  state[flutter::EncodableValue("rawPositionMs")] = flutter::EncodableValue(
+      static_cast<int64_t>(raw_position.count() / 10000));
+  if (netease_session) {
+    state[flutter::EncodableValue("audioActive")] =
+        flutter::EncodableValue(IsNeteaseAudioPlaying());
+  }
   state[flutter::EncodableValue("durationMs")] = flutter::EncodableValue(
       static_cast<int64_t>(timeline.EndTime().count() / 10000));
   const auto thumbnail = properties.Thumbnail();

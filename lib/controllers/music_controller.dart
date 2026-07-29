@@ -7,11 +7,16 @@ import '../services/lyrics_service.dart';
 import '../services/windows_media_service.dart';
 
 class MusicController extends ChangeNotifier {
-  MusicController(this._service, [LyricsService? lyricService])
-    : _lyricService = lyricService ?? LyricsService();
+  MusicController(
+    this._service, [
+    LyricsService? lyricService,
+    DateTime Function()? now,
+  ]) : _lyricService = lyricService ?? LyricsService(),
+       _now = now ?? DateTime.now;
 
   final WindowsMediaService _service;
   final LyricsService _lyricService;
+  final DateTime Function() _now;
   Timer? _timer;
   Timer? _lyricRetryTimer;
   bool _refreshing = false;
@@ -20,7 +25,9 @@ class MusicController extends ChangeNotifier {
   String? _lyricsTrackKey;
   String? _lyricError;
   bool _loadingLyrics = false;
-  DateTime _stateUpdatedAt = DateTime.now();
+  late DateTime _stateUpdatedAt = _now();
+  bool _playbackStarted = true;
+  int _initialRawPositionMs = 0;
 
   MusicState get state => _state;
   String? get lyricError => _lyricError;
@@ -38,8 +45,8 @@ class MusicController extends ChangeNotifier {
 
   int get _currentLyricIndex {
     if (_lyrics.isEmpty) return -1;
-    final elapsed = _state.playing
-        ? DateTime.now().difference(_stateUpdatedAt).inMilliseconds
+    final elapsed = _canAdvance(_state)
+        ? _now().difference(_stateUpdatedAt).inMilliseconds
         : 0;
     final position = _state.positionMs + elapsed;
     var result = -1;
@@ -63,19 +70,21 @@ class MusicController extends ChangeNotifier {
     if (_refreshing) return;
     _refreshing = true;
     var nextState = await _service.getState();
-    final now = DateTime.now();
+    final now = _now();
     final sameTrack =
         _trackIdentity(_state) != null &&
         _trackIdentity(_state) == _trackIdentity(nextState);
+    final wasAdvancing = _canAdvance(_state);
+    _updatePlaybackStart(nextState, sameTrack: sameTrack);
     if (sameTrack) {
-      final elapsed = _state.playing
+      final elapsed = wasAdvancing
           ? now.difference(_stateUpdatedAt).inMilliseconds
           : 0;
       final estimatedPosition = _state.positionMs + elapsed;
       final returnedToZero =
           nextState.positionMs == 0 && estimatedPosition > 2000;
       final playingPositionIsStale =
-          _state.playing &&
+          wasAdvancing &&
           nextState.playing &&
           estimatedPosition > nextState.positionMs;
       if (returnedToZero || playingPositionIsStale) {
@@ -100,6 +109,28 @@ class MusicController extends ChangeNotifier {
       _lyricsTrackKey = null;
       _lyrics = const [];
       _lyricError = null;
+    }
+  }
+
+  bool _canAdvance(MusicState state) =>
+      state.playing && (state.audioActive == null || _playbackStarted);
+
+  void _updatePlaybackStart(MusicState nextState, {required bool sameTrack}) {
+    if (nextState.audioActive == null) {
+      _playbackStarted = true;
+      _initialRawPositionMs = nextState.rawPositionMs;
+      return;
+    }
+    if (!sameTrack) {
+      _initialRawPositionMs = nextState.rawPositionMs;
+      _playbackStarted =
+          nextState.audioActive == true || nextState.rawPositionMs > 0;
+      return;
+    }
+    if (!_playbackStarted &&
+        (nextState.audioActive == true ||
+            nextState.rawPositionMs != _initialRawPositionMs)) {
+      _playbackStarted = true;
     }
   }
 

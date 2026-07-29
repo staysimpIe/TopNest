@@ -3,6 +3,18 @@ import 'package:topnest/models/music_state.dart';
 import 'package:topnest/services/windows_media_service.dart';
 
 void main() {
+  test('解析原始时间轴位置和网易云音频活动状态', () {
+    final state = MusicState.fromMap(const {
+      'positionMs': 4200,
+      'rawPositionMs': 1200,
+      'audioActive': false,
+    });
+
+    expect(state.positionMs, 4200);
+    expect(state.rawPositionMs, 1200);
+    expect(state.audioActive, isFalse);
+  });
+
   test('使用 SMTC 元数据匹配当前歌曲，不读取旧的 isPlayedOnce 条目', () {
     final service = WindowsMediaService();
     final items = <Map>[
