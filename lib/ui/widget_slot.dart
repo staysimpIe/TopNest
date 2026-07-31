@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/desktop_widget_config.dart';
 import '../models/quota.dart';
 import '../controllers/music_controller.dart';
+import '../controllers/system_status_controller.dart';
 import 'widgets/lyric_widget.dart';
 import 'widgets/netease_music_widget.dart';
 import 'widgets/quota_widget.dart';
+import 'widgets/system_status_widget.dart';
 
 class WidgetSlot extends StatelessWidget {
   const WidgetSlot({
@@ -14,6 +16,7 @@ class WidgetSlot extends StatelessWidget {
     required this.snapshots,
     required this.now,
     required this.music,
+    required this.systemStatus,
     this.showDivider = true,
   });
 
@@ -21,6 +24,7 @@ class WidgetSlot extends StatelessWidget {
   final Map<String, QuotaSnapshot> snapshots;
   final DateTime now;
   final MusicController music;
+  final SystemStatusController systemStatus;
   final bool showDivider;
 
   @override
@@ -47,6 +51,8 @@ class WidgetSlot extends StatelessWidget {
         ? NeteaseMusicWidget(controller: music)
         : type == DesktopWidgetType.neteaseLyrics
         ? LyricWidget(controller: music)
+        : type == DesktopWidgetType.systemStatus
+        ? SystemStatusWidget(controller: systemStatus)
         : QuotaWidget(type: type!, snapshot: snapshots[type!.title], now: now),
   );
 }

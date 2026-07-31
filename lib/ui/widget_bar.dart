@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/quota_controller.dart';
 import '../controllers/music_controller.dart';
+import '../controllers/system_status_controller.dart';
 import '../controllers/widget_layout_controller.dart';
 import '../services/settings_service.dart';
 import 'native_tooltip.dart';
@@ -16,6 +17,7 @@ class WidgetBar extends StatefulWidget {
     required this.quota,
     required this.settings,
     required this.music,
+    required this.systemStatus,
     required this.onSettings,
     required this.onHide,
   });
@@ -24,6 +26,7 @@ class WidgetBar extends StatefulWidget {
   final QuotaController quota;
   final AppSettings settings;
   final MusicController music;
+  final SystemStatusController systemStatus;
   final VoidCallback onSettings;
   final VoidCallback onHide;
 
@@ -55,6 +58,7 @@ class _WidgetBarState extends State<WidgetBar> {
       widget.layout,
       widget.quota,
       widget.music,
+      widget.systemStatus,
       widget.settings,
     ]),
     builder: (context, _) {
@@ -86,6 +90,7 @@ class _WidgetBarState extends State<WidgetBar> {
                     snapshots: widget.quota.snapshots,
                     now: _now,
                     music: widget.music,
+                    systemStatus: widget.systemStatus,
                   ),
                 ),
               SizedBox(

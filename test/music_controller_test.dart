@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:topnest/controllers/music_controller.dart';
 import 'package:topnest/models/music_state.dart';
@@ -5,6 +7,30 @@ import 'package:topnest/services/lyrics_service.dart';
 import 'package:topnest/services/windows_media_service.dart';
 
 void main() {
+  test('同一首歌后续刷新沿用首次读取的封面', () async {
+    final cover = Uint8List.fromList([1, 2, 3]);
+    final media = _FakeWindowsMediaService([
+      MusicState(
+        available: true,
+        title: '测试歌曲',
+        artist: '测试歌手',
+        cover: cover,
+      ),
+      const MusicState(
+        available: true,
+        title: '测试歌曲',
+        artist: '测试歌手',
+      ),
+    ]);
+    final controller = MusicController(media, _FakeLyricService());
+    addTearDown(controller.dispose);
+
+    await controller.refresh();
+    await controller.refresh();
+
+    expect(controller.state.cover, same(cover));
+  });
+
   test('同一首歌暂停和恢复时忽略 SMTC 异常归零', () async {
     final media = _FakeWindowsMediaService([
       const MusicState(

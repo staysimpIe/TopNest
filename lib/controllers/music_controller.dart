@@ -77,6 +77,9 @@ class MusicController extends ChangeNotifier {
     final wasAdvancing = _canAdvance(_state);
     _updatePlaybackStart(nextState, sameTrack: sameTrack);
     if (sameTrack) {
+      if (nextState.cover == null && _state.cover != null) {
+        nextState = nextState.copyWith(cover: _state.cover);
+      }
       final elapsed = wasAdvancing
           ? now.difference(_stateUpdatedAt).inMilliseconds
           : 0;

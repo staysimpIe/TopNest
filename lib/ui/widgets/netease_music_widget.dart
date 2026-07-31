@@ -13,6 +13,7 @@ class NeteaseMusicWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = controller.state;
+    final coverPixelSize = (28 * MediaQuery.devicePixelRatioOf(context)).round();
     if (!state.available) {
       return NativeTooltip(
         message: state.error ?? '请打开音乐播放器并播放歌曲',
@@ -52,12 +53,16 @@ class NeteaseMusicWidget extends StatelessWidget {
                       state.cover!,
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
+                      cacheWidth: coverPixelSize,
+                      cacheHeight: coverPixelSize,
                     )
                   : state.coverUrl != null
                   ? Image.network(
                       state.coverUrl!,
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
+                      cacheWidth: coverPixelSize,
+                      cacheHeight: coverPixelSize,
                       errorBuilder: (_, _, _) => const _MusicPlaceholder(),
                     )
                   : const _MusicPlaceholder(),

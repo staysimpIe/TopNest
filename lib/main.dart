@@ -11,12 +11,14 @@ import 'package:window_manager/window_manager.dart';
 
 import 'controllers/quota_controller.dart';
 import 'controllers/music_controller.dart';
+import 'controllers/system_status_controller.dart';
 import 'controllers/widget_layout_controller.dart';
 import 'providers/antigravity_provider.dart';
 import 'providers/codex_provider.dart';
 import 'services/settings_service.dart';
 import 'services/windows_media_service.dart';
 import 'services/windows_shell_service.dart';
+import 'services/windows_system_status_service.dart';
 import 'ui/settings_window.dart';
 import 'ui/widget_bar.dart';
 
@@ -92,6 +94,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
   late final WidgetLayoutController _layout;
   late final QuotaController _quota;
   late final MusicController _music;
+  late final SystemStatusController _systemStatus;
   late final AppSettings _settings;
   File? _temporaryTrayIcon;
   bool _exiting = false;
@@ -104,6 +107,8 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
     _quota = QuotaController([CodexQuotaProvider(), AntigravityQuotaProvider()])
       ..start(Duration(minutes: _settings.refreshMinutes));
     _music = MusicController(WindowsMediaService())..start();
+    _systemStatus = SystemStatusController(WindowsSystemStatusService())
+      ..start();
     windowManager.addListener(this);
     trayManager.addListener(this);
     widget.windowController.setWindowMethodHandler((call) async {
@@ -293,6 +298,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
     _layout.dispose();
     _quota.dispose();
     _music.dispose();
+    _systemStatus.dispose();
     _settings.dispose();
     super.dispose();
   }
@@ -324,6 +330,7 @@ class _DesktopWidgetBarAppState extends State<DesktopWidgetBarApp>
             layout: _layout,
             quota: _quota,
             music: _music,
+            systemStatus: _systemStatus,
             settings: _settings,
             onSettings: _openSettings,
             onHide: _hideBar,

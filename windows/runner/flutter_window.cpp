@@ -1,3 +1,7 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+
 #include "flutter_window.h"
 
 #include <audiopolicy.h>
@@ -22,6 +26,7 @@
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -38,6 +43,72 @@ constexpr COLORREF kDwmColorNone = 0xFFFFFFFE;
 constexpr int kDwmBackdropNone = 1;
 constexpr int kDwmBackdropTransientWindow = 3;
 constexpr UINT kMediaResultMessage = WM_APP + 38;
+std::string g_last_media_track_key;
+std::string g_last_media_album;
+std::vector<uint8_t> g_last_thumbnail_bytes;
+bool g_thumbnail_sent_for_track = false;
+bool g_allow_same_thumbnail_for_track = false;
+int g_thumbnail_retry_count = 0;
+
+uint64_t FileTimeValue(const FILETIME& value) {
+  ULARGE_INTEGER result{};
+  result.LowPart = value.dwLowDateTime;
+  result.HighPart = value.dwHighDateTime;
+  return result.QuadPart;
+}
+
+flutter::EncodableMap ReadSystemStatus() {
+  FILETIME idle_time{};
+  FILETIME kernel_time{};
+  FILETIME user_time{};
+  if (!GetSystemTimes(&idle_time, &kernel_time, &user_time)) {
+    throw std::runtime_error("读取 CPU 状态失败");
+  }
+
+  MEMORYSTATUSEX memory_status{};
+  memory_status.dwLength = sizeof(memory_status);
+  if (!GlobalMemoryStatusEx(&memory_status)) {
+    throw std::runtime_error("读取内存状态失败");
+  }
+
+  uint64_t received_bytes = 0;
+  uint64_t sent_bytes = 0;
+  PMIB_IF_TABLE2 interface_table = nullptr;
+  if (GetIfTable2(&interface_table) != NO_ERROR) {
+    throw std::runtime_error("读取网络状态失败");
+  }
+  for (ULONG index = 0; index < interface_table->NumEntries; ++index) {
+    const auto& row = interface_table->Table[index];
+    if (row.OperStatus != IfOperStatusUp ||
+        row.Type == IF_TYPE_SOFTWARE_LOOPBACK) {
+      continue;
+    }
+    received_bytes += row.InOctets;
+    sent_bytes += row.OutOctets;
+  }
+  FreeMibTable(interface_table);
+
+  flutter::EncodableMap status;
+  status[flutter::EncodableValue("tickMilliseconds")] =
+      flutter::EncodableValue(static_cast<int64_t>(GetTickCount64()));
+  status[flutter::EncodableValue("idleTime")] =
+      flutter::EncodableValue(static_cast<int64_t>(FileTimeValue(idle_time)));
+  status[flutter::EncodableValue("kernelTime")] = flutter::EncodableValue(
+      static_cast<int64_t>(FileTimeValue(kernel_time)));
+  status[flutter::EncodableValue("userTime")] =
+      flutter::EncodableValue(static_cast<int64_t>(FileTimeValue(user_time)));
+  status[flutter::EncodableValue("memoryUsedBytes")] =
+      flutter::EncodableValue(static_cast<int64_t>(
+          memory_status.ullTotalPhys - memory_status.ullAvailPhys));
+  status[flutter::EncodableValue("memoryTotalBytes")] =
+      flutter::EncodableValue(
+          static_cast<int64_t>(memory_status.ullTotalPhys));
+  status[flutter::EncodableValue("receivedBytes")] =
+      flutter::EncodableValue(static_cast<int64_t>(received_bytes));
+  status[flutter::EncodableValue("sentBytes")] =
+      flutter::EncodableValue(static_cast<int64_t>(sent_bytes));
+  return status;
+}
 
 struct MediaMethodResponse {
   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result;
@@ -265,6 +336,12 @@ flutter::EncodableMap ReadMediaState() {
   state[flutter::EncodableValue("available")] =
       flutter::EncodableValue(session != nullptr);
   if (session == nullptr) {
+    g_last_media_track_key.clear();
+    g_last_media_album.clear();
+    g_last_thumbnail_bytes.clear();
+    g_thumbnail_sent_for_track = false;
+    g_allow_same_thumbnail_for_track = false;
+    g_thumbnail_retry_count = 0;
     const bool netease_audio_active = IsNeteaseAudioPlaying();
     state[flutter::EncodableValue("neteaseRunning")] =
         flutter::EncodableValue(IsNeteaseRunning());
@@ -303,12 +380,21 @@ flutter::EncodableMap ReadMediaState() {
       position = std::min(position, timeline.EndTime());
     }
   }
-  state[flutter::EncodableValue("title")] =
-      flutter::EncodableValue(WideToUtf8(properties.Title().c_str()));
-  state[flutter::EncodableValue("artist")] =
-      flutter::EncodableValue(WideToUtf8(properties.Artist().c_str()));
-  state[flutter::EncodableValue("album")] =
-      flutter::EncodableValue(WideToUtf8(properties.AlbumTitle().c_str()));
+  const auto title = WideToUtf8(properties.Title().c_str());
+  const auto artist = WideToUtf8(properties.Artist().c_str());
+  const auto album = WideToUtf8(properties.AlbumTitle().c_str());
+  const auto track_key = title + "\n" + artist + "\n" + album;
+  if (track_key != g_last_media_track_key) {
+    g_allow_same_thumbnail_for_track =
+        !album.empty() && album == g_last_media_album;
+    g_last_media_track_key = track_key;
+    g_last_media_album = album;
+    g_thumbnail_sent_for_track = false;
+    g_thumbnail_retry_count = 0;
+  }
+  state[flutter::EncodableValue("title")] = flutter::EncodableValue(title);
+  state[flutter::EncodableValue("artist")] = flutter::EncodableValue(artist);
+  state[flutter::EncodableValue("album")] = flutter::EncodableValue(album);
   state[flutter::EncodableValue("playing")] = flutter::EncodableValue(playing);
   state[flutter::EncodableValue("canPrevious")] =
       flutter::EncodableValue(controls.IsPreviousEnabled());
@@ -327,7 +413,7 @@ flutter::EncodableMap ReadMediaState() {
   state[flutter::EncodableValue("durationMs")] = flutter::EncodableValue(
       static_cast<int64_t>(timeline.EndTime().count() / 10000));
   const auto thumbnail = properties.Thumbnail();
-  if (thumbnail != nullptr) {
+  if (!g_thumbnail_sent_for_track && thumbnail != nullptr) {
     const auto stream = thumbnail.OpenReadAsync().get();
     const uint64_t size = std::min<uint64_t>(stream.Size(), 5 * 1024 * 1024);
     if (size > 0) {
@@ -335,8 +421,18 @@ flutter::EncodableMap ReadMediaState() {
       reader.LoadAsync(static_cast<uint32_t>(size)).get();
       std::vector<uint8_t> bytes(static_cast<size_t>(size));
       reader.ReadBytes(bytes);
+      const bool unchanged_thumbnail =
+          !g_last_thumbnail_bytes.empty() && bytes == g_last_thumbnail_bytes;
+      if (unchanged_thumbnail && !g_allow_same_thumbnail_for_track &&
+          g_thumbnail_retry_count < 5) {
+        ++g_thumbnail_retry_count;
+        return state;
+      }
       state[flutter::EncodableValue("cover")] =
           flutter::EncodableValue(bytes);
+      g_last_thumbnail_bytes = bytes;
+      g_thumbnail_sent_for_track = true;
+      g_thumbnail_retry_count = 0;
     }
   }
   return state;
@@ -430,6 +526,13 @@ bool FlutterWindow::OnCreate() {
           ShowNativeTooltip(*arguments);
         } else if (call.method_name() == "hideTooltip") {
           HideNativeTooltip();
+        } else if (call.method_name() == "getSystemStatus") {
+          try {
+            result->Success(flutter::EncodableValue(ReadSystemStatus()));
+          } catch (const std::exception& error) {
+            result->Error("system_status_error", error.what());
+          }
+          return;
         } else if (call.method_name() == "getMediaState") {
           RunMediaTask(GetHandle(), std::move(result), []() {
             return flutter::EncodableValue(ReadMediaState());

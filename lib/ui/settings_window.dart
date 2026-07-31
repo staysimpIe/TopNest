@@ -652,19 +652,21 @@ class _AppearancePanelState extends State<_AppearancePanel> {
   }
 }
 
-enum _ComponentGroup { all, quota, music }
+enum _ComponentGroup { all, quota, music, system }
 
 extension on _ComponentGroup {
   String get title => switch (this) {
     _ComponentGroup.all => '全部组件',
     _ComponentGroup.quota => '额度统计',
     _ComponentGroup.music => '音乐',
+    _ComponentGroup.system => '系统',
   };
 
   IconData get icon => switch (this) {
     _ComponentGroup.all => Icons.grid_view_rounded,
     _ComponentGroup.quota => Icons.data_usage_rounded,
     _ComponentGroup.music => Icons.music_note_rounded,
+    _ComponentGroup.system => Icons.monitor_heart_outlined,
   };
 }
 
@@ -686,7 +688,11 @@ class _ComponentPanelState extends State<_ComponentPanel> {
     _ComponentGroup.quota =>
       DesktopWidgetType.values.where((type) => type.isQuota).toList(),
     _ComponentGroup.music =>
-      DesktopWidgetType.values.where((type) => !type.isQuota).toList(),
+      DesktopWidgetType.values.where((type) => type.isMusic).toList(),
+    _ComponentGroup.system =>
+      DesktopWidgetType.values
+          .where((type) => type == DesktopWidgetType.systemStatus)
+          .toList(),
   };
 
   @override
@@ -815,7 +821,14 @@ class _ComponentPanelState extends State<_ComponentPanel> {
                                 .length,
                           _ComponentGroup.music =>
                             DesktopWidgetType.values
-                                .where((type) => !type.isQuota)
+                                .where((type) => type.isMusic)
+                                .length,
+                          _ComponentGroup.system =>
+                            DesktopWidgetType.values
+                                .where(
+                                  (type) =>
+                                      type == DesktopWidgetType.systemStatus,
+                                )
                                 .length,
                         },
                         onTap: () => setState(() => _group = group),
@@ -1010,7 +1023,11 @@ class _ComponentCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    type.isQuota ? '额度统计' : '音乐',
+                    type.isQuota
+                        ? '额度统计'
+                        : type.isMusic
+                        ? '音乐'
+                        : '系统',
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                 ),
@@ -1046,6 +1063,7 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.claudeAndGpt => const Color(0xffc084fc),
       DesktopWidgetType.neteaseMusic => const Color(0xffef4444),
       DesktopWidgetType.neteaseLyrics => const Color(0xffef4444),
+      DesktopWidgetType.systemStatus => const Color(0xff22c55e),
     };
     final metric = switch (type) {
       DesktopWidgetType.codex => '周 56%',
@@ -1053,6 +1071,7 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.claudeAndGpt => '68% · 41%',
       DesktopWidgetType.neteaseMusic => '播放中',
       DesktopWidgetType.neteaseLyrics => '正在播放的歌词',
+      DesktopWidgetType.systemStatus => 'CPU 17% · 内存 63%',
     };
     final detail = switch (type) {
       DesktopWidgetType.codex =>
@@ -1061,6 +1080,7 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.claudeAndGpt => '4天 8小时 · 2天 19小时',
       DesktopWidgetType.neteaseMusic => '歌曲名称 · 歌手名称',
       DesktopWidgetType.neteaseLyrics => '下一句歌词',
+      DesktopWidgetType.systemStatus => '↓ 1.2 MB/s · ↑ 82.0 KB/s',
     };
     final progresses = switch (type) {
       DesktopWidgetType.codex => const [0.56],
@@ -1068,6 +1088,7 @@ class _MiniWidgetPreview extends StatelessWidget {
       DesktopWidgetType.claudeAndGpt => const [0.68, 0.41],
       DesktopWidgetType.neteaseMusic => const [0.72],
       DesktopWidgetType.neteaseLyrics => const [0.45],
+      DesktopWidgetType.systemStatus => const [0.17, 0.63],
     };
     return Padding(
       padding: EdgeInsets.symmetric(

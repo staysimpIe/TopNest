@@ -107,6 +107,7 @@ class QuotaWidget extends StatelessWidget {
     DesktopWidgetType.claudeAndGpt => const Color(0xffc084fc),
     DesktopWidgetType.neteaseMusic => const Color(0xffe83c3c),
     DesktopWidgetType.neteaseLyrics => const Color(0xffe83c3c),
+    DesktopWidgetType.systemStatus => const Color(0xff22c55e),
   };
 }
 

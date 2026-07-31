@@ -37,12 +37,16 @@ class MusicState {
   final int durationMs;
   final String? error;
 
-  MusicState copyWith({bool? playing, int? positionMs}) => MusicState(
+  MusicState copyWith({
+    bool? playing,
+    int? positionMs,
+    Uint8List? cover,
+  }) => MusicState(
     available: available,
     title: title,
     artist: artist,
     album: album,
-    cover: cover,
+    cover: cover ?? this.cover,
     coverUrl: coverUrl,
     playing: playing ?? this.playing,
     canPrevious: canPrevious,
